@@ -27,14 +27,6 @@ t_1981_c1 <- prism$tmaxdaily.iowa[1,,1] #first county, all days, first year
 t_1981_c1[366] #check for leap year (366 days)
 plot(1:366, t_1981_c1, type = "l") #base r plot
 
-ggplot() +
-  geom_line(mapping = aes(x=1:366, y = t_1981_c1)) +
-  theme_bw() +
-  xlab("day of year") +
-  ylab("daily maximum temperature (°C)") +
-  ggtitle("Daily Maximum Temperature, Iowa County #1")
-
-
 ```
 
 ```{r tidying up}
@@ -48,70 +40,6 @@ tmaxdf <- as.data.frame.table(prism$tmaxdaily.iowa)
 # relabel the columns
 colnames(tmaxdf) <- c("countyfp","doy","year","tmax") #name columns
 tmaxdf <- tibble(tmaxdf) #tidyverse table
-
-```
-
-## Temperature trends
-
-### Summer temperature trends: Winneshiek County
-
-```{r temp trends}
-
-tmaxdf$doy <- as.numeric(tmaxdf$doy) 
-tmaxdf$year <- as.numeric(as.character(tmaxdf$year))
-
-winnesummer <- tmaxdf %>%
-  filter(countyfp==191 & doy >= 152 & doy <= 243) %>% #day 152= June 1, 243= Aug 31
-  group_by(year) %>%
-  summarize(meantmax = mean(tmax))
-
-ggplot(winnesummer, mapping = aes(x = year, y = meantmax)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "year", y = "Tmax (°C)") +
-  geom_smooth(method = lm)
-
-lm_summertmax <- lm(meantmax ~ year, winnesummer)
-summary(lm_summertmax) #not sig
-
-```
-
-### Winter Temperatures - Winneshiek County
-
-```{r winter temps}
-
-winnewinter <- tmaxdf %>%
-  filter(countyfp==191 & doy <= 59 | doy >= 335 & !is.na(tmax)) %>% #day 59= Feb 28, 335= Dec. 1
-  group_by(year) %>%
-  summarize(meantmax = mean(tmax))
-
-ggplot(winnewinter, mapping = aes(x = year, y = meantmax)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "year", y = "Tmax (°C)") +
-  geom_smooth(method = lm)
-
-lm_wintertmax <- lm(meantmax ~ year, winnewinter)
-summary(lm_wintertmax) #not sig
-
-```
-
-### Multiple regression -- Quadratic time trend
-
-```{r quadratic temp trend}
-
-winnewinter$yearsq <- winnewinter$year^2 #square explanatory variables for quadratic
-
-lm_wintertmaxquad <- lm(meantmax ~ year + yearsq, winnewinter)
-summary(lm_wintertmaxquad)
-winnewinter$fitted <- lm_wintertmaxquad$fitted.values
-
-#with the fitted values, create a non-linear trend
-ggplot(winnewinter) +
-  geom_point(mapping = aes(x = year, y = meantmax)) +
-  geom_line(mapping = aes(x = year, y = fitted)) +
-  theme_bw() +
-  labs(x = "year", y = "tmax")
 
 ```
 
@@ -169,12 +97,12 @@ winnecorn$yearsq <- winnecorn$year^2 #square explanatory variables for quadratic
 
 lm_cornquad <- lm(yield ~ year + yearsq, winnecorn)
 summary(lm_cornquad)
-winnecorn$fitted <- lm_cornquad$fitted.values
+winnecorn$y_fitted <- lm_cornquad$fitted.values
 
 #with the fitted values, create a non-linear trend
 ggplot(winnecorn) +
   geom_point(mapping = aes(x = year, y = yield)) +
-  geom_line(mapping = aes(x = year, y = fitted)) +
+  geom_line(mapping = aes(x = year, y = y_fitted)) +
   theme_bw() +
   labs(x = "Year", y = "Corn Yield")
 
@@ -188,7 +116,40 @@ When we fit a quadratic line to the data, we find that it follows very closely t
 ### Question 2 -- Time Series: Let's analyze the relationship between temperature and yields for the Winneshiek County time series. Use data on yield and summer avg Tmax. Is adding year or Tmax^2 to your model helpful? Make a plot and interpret the results.
 ```{r, warning=FALSE}
 
+# Winneshiek County summer temp maxes
+tmaxdf$doy <- as.numeric(tmaxdf$doy) 
+tmaxdf$year <- as.numeric(as.character(tmaxdf$year))
+
+winnesummer <- tmaxdf %>%
+  filter(countyfp==191 & doy >= 152 & doy <= 243) %>% #day 152= June 1, 243= Aug 31
+  group_by(year) %>%
+  summarize(meantmax = mean(tmax))
+
+lm_summertmax <- lm(meantmax ~ year, winnesummer)
+summary(lm_summertmax) #not sig
+
+winnesummer$yearsq <- winnesummer$year^2 #square explanatory variables for quadratic
+
+lm_summerquad <- lm(meantmax ~ year + yearsq, winnesummer)
+summary(lm_summerquad)
+winnesummer$t_fitted <- lm_summerquad$fitted.values
+
+# Join yield and temp data
+winne <- inner_join(winnecorn, winnesummer)
+
+lmwinne <- lm(yield ~ year + yearsq + meantmax, data = winne)
+summary(lmwinne)
+winne$allfit <- lmwinne$fitted.values
+
+ggplot(winne) +
+  geom_point(mapping = aes(x = year, y = yield)) +
+  geom_line(mapping = aes(x = year, y = allfit)) +
+  theme_bw() +
+  labs(x = "Year", y = "Corn Yield")
+
 ```
+
+
 
 ### Question 3 -- Cross-Section: Analyze the relationship between temperature and yield across all counties in 2018. Is there a relationship? Interpret the results.
 ```{r, warning=FALSE}
