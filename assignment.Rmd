@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(R.matlab) #pull in matlab files
 library(rnassqs) #access to USDA national agriculture data
+library(RColorBrewer)
 ```
 
 ## Weather Data Analysis
@@ -45,7 +46,7 @@ tmaxdf <- tibble(tmaxdf) #tidyverse table
 
 ### Download NASS corn yield data
 
-```{r yield download}
+```{r yield download, message=FALSE}
 
 # set our API key with NASS
 nassqs_auth(key = "B9113AF8-85C4-3CEE-8D93-6E885D49E24F") #Here put in API code from USDA QuickStats service
@@ -230,7 +231,7 @@ plot(ytc_lm)
 
 ```
 
-**Figures 6.** Residuals (top left), Normal Q-Q (top right), Scale-Location (bottom left), and Cook's Distance (bottom right) plots for the panel regression model.
+**Figure 6.** Residuals (top left), Normal Q-Q (top right), Scale-Location (bottom left), and Cook's Distance (bottom right) plots for the panel regression model.
 
 As a panel regression of all counties over all years, the statistical significance of year, mean maximum temperature, and squared maximum temperature as predictors of yield becomes stronger (P<2e-16 for each). The R squared value for the model is 0.721, indicating a pretty good fit, as is evident in Figure 5. However, the residuals for the model are pretty wide (Figures 5, 6) and the data may not be very normally distributed (Figure 6).
 
@@ -238,10 +239,73 @@ As a panel regression of all counties over all years, the statistical significan
 ### Question 5 -- Soybeans: Download NASS data on soybean yields and explore either a time series relationship for a given county, the cross-sectional relationship for a given year, or a panel across all counties and years.
 ```{r, warning=FALSE}
 
+# parameters to query on 
+params2 <- list(commodity_desc = "SOYBEANS", prodn_practice_desc = "ALL PRODUCTION PRACTICES", year__GE = 1981, state_alpha = "IA")
+
+# download
+soyyieldsall <- nassqs_yields(params)
+
+soyyieldsall$county_ansi <- as.numeric(soyyieldsall$county_ansi)
+soyyieldsall$yield <- as.numeric(soyyieldsall$Value)
+
+# clean and filter this dataset
+soy <- select(soyyieldsall, county_ansi, county_name, yield, year) %>%
+  filter(!is.na(county_ansi) & !is.na(yield))
+soy <- tibble(soy)
+
+soy_panel <- soy %>%
+  mutate_at(vars(county_ansi), funs(factor)) %>%
+  mutate(yearsq = year^2)
+
+soypanel_lm <- lm(yield ~ year + yearsq + county_ansi, data = soy_panel)
+summary(soypanel_lm)
+soy_panel$fittedyield <- soypanel_lm$fitted.values
+
+ggplot(soy_panel, mapping = aes(x = year, y = yield)) +
+  geom_point() +
+  geom_line(mapping = aes(x = year, y = fittedyield, color="red")) +
+  geom_smooth(method="lm") +
+  theme_bw() + theme(legend.position="none") +
+  labs(x = "Year", y = "Soy Yield")
+
+```
+
+**Figure 7.** Soy yields over time (years) across all counties of Iowa, with a panel fit (orange), and linear fit (blue). Panel regression R squared is 0.660, with p<8.5e-06 for year and years squared versus yield.
+
+Like with corn yields, soy yields in Iowa follow an upward trend over time, though with wide residuals (Figure 7). 
+
+### Bonus: Find a package to make a county map of Iowa displaying some sort of information about yields or weather. Interpret your map.
+```{r, warning=FALSE}
+library(sf) #Spatial package that can read and create shapefiles 
+library(mapview) #Interactive maps
+library(USAboundaries) #USA states and counties
+
+counties <- us_counties
+
+Iowa_ct <- counties(states = 'iowa')
+str(Iowa_ct)
+#mapview(Iowa_ct)
+
+summer2018 <- tmaxdf %>%
+  filter(doy >= 152 & doy <= 243, year==2018) %>% #day 152= June 1, 243= Aug 31
+  group_by(countyfp, year) %>%
+  summarize(meantmax = mean(tmax))
+
+Itemp_2018 <- merge(Iowa_ct, summer2018)
+
+mapview(Itemp_2018, zcol ='meantmax', col.regions=brewer.pal(9, "OrRd"), layer.name = "Mean Max. Summer Temp. (C)")
+
+```
+
+**Figure 8.** Map of Iowa counties and their mean maximum temperatures in degrees Celsius during the summer of 2018.
+
+This map demonstrates the spatial variation of temperature in the state of Iowa. With little topography impact, the northern part of the state experiences maximum highs that are 2-3 degrees (C) cooler than those experienced by the southern part of the state, respectively.
+
+
+### Bonus #2: Challenge question - map trends in corn yields by county across Iowa. Interpret your map.
+```{r, warning=FALSE}
 
 
 ```
 
-### Bonus: Find a package to make a county map of Iowa displaying some sort of information about yields or weather. Interpret your map.
 
-### Bonus #2: Challenge question - map trends in corn yields by county across Iowa. Interpret your map.
