@@ -283,7 +283,7 @@ library(USAboundaries) #USA states and counties
 counties <- us_counties
 
 Iowa_ct <- counties(states = 'iowa')
-str(Iowa_ct)
+#str(Iowa_ct)
 #mapview(Iowa_ct)
 
 summer2018 <- tmaxdf %>%
@@ -305,7 +305,21 @@ This map demonstrates the spatial variation of temperature in the state of Iowa.
 ### Bonus #2: Challenge question - map trends in corn yields by county across Iowa. Interpret your map.
 ```{r, warning=FALSE}
 
+summer2018 <- tmaxdf %>%
+  filter(doy >= 152 & doy <= 243, year==2018) %>% #day 152= June 1, 243= Aug 31
+  group_by(countyfp, year) %>%
+  summarize(meantmax = mean(tmax))
+
+corn2018b <- corn2018 %>%
+  rename("countyfp" = "county_ansi")
+
+Icorn_2018 <- merge(Iowa_ct, corn2018b)
+
+mapview(Icorn_2018, zcol ='yield', col.regions=brewer.pal(9, "YlGn"), layer.name = "Corn Yield")
+
 
 ```
 
+**Figure 9.** Map of Iowa counties and their corn yield in 2018.
 
+While the temperature map follows a clear spatial pattern from north to south, a map of corn yields for the same year do not reflect a similar spatial distribution. Instead, it is difficult to tell what might drive patterns in yield without more information. Potential causes of variation include proximity to water, soil type, and local cultivation practices.
