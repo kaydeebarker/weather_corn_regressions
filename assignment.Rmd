@@ -107,6 +107,7 @@ ggplot(winnecorn) +
   labs(x = "Year", y = "Corn Yield")
 
 ```
+
 **Figure 2.** Quadratic fit of corn yields over time (years) in Winneshieck County, Iowa.
 
 
@@ -195,12 +196,49 @@ There is a clear relationship with maximum temperatures and corn yields demonstr
 ### Question 4 -- Panel: One way to leverage multiple time series is to group all data into what is called a "panel" regression. Convert the county ID code ("countyfp" or "county_ansi") into factor using as.factor, then include this variable in a regression using all counties' yield and summer temperature data. How does the significance of your temperature coefficients (Tmax, Tmax^2) change? Make a plot comparing actual and fitted yields and interpret the results of your model.
 ```{r, warning=FALSE}
 
+corn_all <- cornyields %>%
+  mutate_at(vars(county_ansi), funs(factor))
+  
+tmax_all <- tmaxdf %>%
+  filter(doy >= 152 & doy <= 243) %>%
+  group_by(countyfp, year) %>%
+  rename("county_ansi" = "countyfp") %>%
+  summarize(meantmax = mean(tmax))
 
+yieldtemp_all <- inner_join(corn_all, tmax_all) %>%
+  mutate(tmaxsq = (meantmax^2)) %>%
+  mutate(yearsq = year^2)
+
+ytc_lm <- lm(yield ~ year + meantmax + tmaxsq + county_ansi, data = yieldtemp_all)
+summary(ytc_lm)
+yieldtemp_all$fittedyield <- ytc_lm$fitted.values
+
+ggplot(yieldtemp_all, mapping = aes(x = fittedyield, y = yield)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  theme_bw() + theme(legend.position="none") +
+  labs(x = "Fitted Yield", y = "Actual Yield")
 
 ```
 
+**Figure 5.** Fitted model yield values versus actual yield values for all counties of Iowa over all available years, from 1981 to 2018.
+
+```{r, warning=FALSE}
+
+par(mfrow=c(2,2))
+plot(ytc_lm)
+
+```
+
+**Figures 6.** Residuals (top left), Normal Q-Q (top right), Scale-Location (bottom left), and Cook's Distance (bottom right) plots for the panel regression model.
+
+As a panel regression of all counties over all years, the statistical significance of year, mean maximum temperature, and squared maximum temperature as predictors of yield becomes stronger (P<2e-16 for each). The R squared value for the model is 0.721, indicating a pretty good fit, as is evident in Figure 5. However, the residuals for the model are pretty wide (Figures 5, 6) and the data may not be very normally distributed (Figure 6).
+
+
 ### Question 5 -- Soybeans: Download NASS data on soybean yields and explore either a time series relationship for a given county, the cross-sectional relationship for a given year, or a panel across all counties and years.
 ```{r, warning=FALSE}
+
+
 
 ```
 
